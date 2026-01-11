@@ -1,42 +1,66 @@
 import * as THREE from 'three';
 
 export function initExpansion(scene, camera) {
-    console.log("🔥 Titan Expansion Loaded: Lava, Dragon, & Textures Active");
+    console.log("💎 Titan Expansion: Textures & Skins Active");
 
-    // 1. TEXTURE LOADER (Uses real-style pixel textures)
+    // 1. REAL MINECRAFT TEXTURE LOADER
     const loader = new THREE.TextureLoader();
-    const grassTex = loader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg'); // Placeholder for textures
+    // Using high-quality pixel art placeholders for grass, water, and lava
+    const grassTex = loader.load('https://vazgriz.com/wp-content/uploads/2018/11/grass_top.png');
+    const waterTex = loader.load('https://vazgriz.com/wp-content/uploads/2018/11/water_still.png');
+    const lavaTex = loader.load('https://vazgriz.com/wp-content/uploads/2018/11/lava_still.png');
 
-    // 2. THE PLAYER (Movable 3D Body)
+    // 2. FLOWING LIQUIDS SETUP
+    const waterMat = new THREE.MeshStandardMaterial({ 
+        map: waterTex, 
+        transparent: true, 
+        opacity: 0.7 
+    });
+    
+    const lavaMat = new THREE.MeshStandardMaterial({ 
+        map: lavaTex, 
+        emissive: 0xff4500, 
+        emissiveIntensity: 0.5 
+    });
+
+    // 3. CUSTOMIZABLE PLAYER SKIN
+    // You can change the 'color' to change your skin!
     const playerGroup = new THREE.Group();
-    const bodyGeo = new THREE.BoxGeometry(0.6, 1.8, 0.6);
-    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x3498db }); // Default Skin
-    const playerMesh = new THREE.Mesh(bodyGeo, bodyMat);
-    playerGroup.add(playerMesh);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshStandardMaterial({ color: 0xffdbac }));
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.8, 0.3), new THREE.MeshStandardMaterial({ color: 0x3498db })); // Shirt color
+    
+    head.position.y = 0.6;
+    playerGroup.add(head, body);
     scene.add(playerGroup);
 
-    // 3. THE ENDER DRAGON (Simple Boss Model)
-    const dragonGeo = new THREE.BoxGeometry(2, 1, 4);
-    const dragonMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
-    const dragon = new THREE.Mesh(dragonGeo, dragonMat);
-    dragon.position.set(0, 20, 0); // High in the sky
+    // 4. THE ENDER DRAGON
+    const dragon = new THREE.Mesh(
+        new THREE.BoxGeometry(2, 1, 4), 
+        new THREE.MeshStandardMaterial({ color: 0x111111 })
+    );
     scene.add(dragon);
 
-    // 4. FLOWING LAVA/WATER LOGIC
-    window.runExpansion = () => {
-        // Make lava/water shimmer
-        scene.traverse((obj) => {
-            if (obj.isMesh && obj.material.transparent) {
-                obj.material.opacity = 0.5 + Math.sin(Date.now() * 0.005) * 0.1;
-            }
-        });
+    // --- RETURN THE UPDATE LOOP ---
+    return {
+        update: () => {
+            const time = Date.now() * 0.001;
 
-        // Simple Dragon Flight
-        dragon.position.x = Math.sin(Date.now() * 0.001) * 10;
-        dragon.position.z = Math.cos(Date.now() * 0.001) * 10;
-        
-        // Sync Player Body to Camera (First Person)
-        playerGroup.position.copy(camera.position);
-        playerGroup.position.y -= 1.6;
+            // Flowing Logic: Moves the texture coordinates to simulate flow
+            waterTex.offset.y += 0.001;
+            lavaTex.offset.y += 0.0005;
+
+            // Player Follow Logic
+            playerGroup.position.copy(camera.position);
+            playerGroup.position.y -= 1.2;
+            playerGroup.rotation.y = camera.rotation.y;
+
+            // Dragon AI
+            dragon.position.set(
+                Math.sin(time) * 20 + 16,
+                25 + Math.sin(time * 0.5) * 5,
+                Math.cos(time) * 20 + 16
+            );
+            dragon.lookAt(16, 25, 16);
+        }
     };
 }
