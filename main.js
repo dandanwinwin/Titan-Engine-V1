@@ -113,3 +113,18 @@ function animate() {
     renderer.render(scene, camera);
 }
 animate();
+// --- THE MOD LOADER ---
+async function loadExternalMods() {
+    try {
+        const modModule = await import('./mods.js');
+        if (modModule.init) {
+            modModule.init(scene, GameState, processCommand);
+            console.log("✅ Mod Loaded Successfully!");
+        }
+    } catch (e) {
+        console.log("No mods found or error in mod file. Skipping.");
+    }
+}
+
+// Run the loader
+loadExternalMods();
