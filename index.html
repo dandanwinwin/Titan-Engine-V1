@@ -3,70 +3,132 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Titan Engine 1.21</title>
+    <title>Titan Engine 1.21 | Ultimate</title>
     <style>
-        /* Midnight theme to prevent eye strain */
+        /* Deep Dark Theme for Eye Protection */
+        :root {
+            --ui-gray: rgba(25, 25, 30, 0.85);
+            --mace-purple: #8e44ad;
+            --text-soft: #a0a0a0;
+        }
+
         body { 
             margin: 0; 
             overflow: hidden; 
             background-color: #020205; 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             user-select: none;
             touch-action: none;
         }
 
-        canvas { 
-            display: block; 
-        }
+        canvas { display: block; }
 
-        /* Low-contrast UI Overlay */
-        #ui-container {
+        /* HUD Overlay */
+        #hud {
             position: absolute;
             top: 20px;
             left: 20px;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            color: #a0a0a0; /* Soft gray instead of harsh white */
             pointer-events: none;
-            text-shadow: 1px 1px 2px black;
         }
 
-        .stat-label {
-            font-size: 14px;
+        #dimension-tag {
+            font-size: 12px;
+            letter-spacing: 2px;
+            color: var(--mace-purple);
+            text-transform: uppercase;
             margin-bottom: 5px;
-            letter-spacing: 1px;
+            text-shadow: 0 0 10px rgba(142, 68, 173, 0.5);
         }
 
-        #health-bar {
-            color: #8e44ad; /* Soft purple/red for health */
-            font-size: 18px;
+        #health-container {
+            display: flex;
+            gap: 4px;
+            font-size: 20px;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8));
         }
 
+        /* The Hotbar - Tablet Optimized */
+        #hotbar {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 12px;
+            background: var(--ui-gray);
+            padding: 12px;
+            border-radius: 16px;
+            border: 1px solid #333;
+            backdrop-filter: blur(5px);
+            pointer-events: auto;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .slot {
+            width: 60px;
+            height: 60px;
+            border: 2px solid #444;
+            background: #111;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            transition: all 0.2s ease;
+        }
+
+        .slot.active {
+            border-color: var(--mace-purple);
+            background: #1a1a2e;
+            transform: translateY(-10px);
+            box-shadow: 0 5px 15px rgba(142, 68, 173, 0.4);
+        }
+
+        /* Center Crosshair */
         #crosshair {
             position: absolute;
             top: 50%;
             left: 50%;
-            width: 20px;
-            height: 20px;
-            border: 2px solid rgba(160, 160, 160, 0.3);
+            width: 6px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.2);
             border-radius: 50%;
             transform: translate(-50%, -50%);
             pointer-events: none;
         }
+
+        /* Dimension Warp Notification */
+        #warp-msg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 4px;
+            opacity: 0;
+            transition: opacity 0.5s;
+            pointer-events: none;
+        }
     </style>
 </head>
-<div id="hotbar" style="position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 10px; border: 1px solid #444; pointer-events: auto;">
-    <div class="slot" id="slot0" style="width: 50px; height: 50px; border: 2px solid #8e44ad; background: #1a1a1a; display: flex; align-items: center; justify-content: center; font-size: 24px;">⚔️</div>
-    <div class="slot" id="slot1" style="width: 50px; height: 50px; border: 2px solid #444; background: #1a1a1a; display: flex; align-items: center; justify-content: center; font-size: 24px;">🧱</div>
-    <div class="slot" id="slot2" style="width: 50px; height: 50px; border: 2px solid #444; background: #1a1a1a; display: flex; align-items: center; justify-content: center; font-size: 24px;">🔑</div>
-</div>
-    <body>
+<body>
 
-    <div id="ui-container">
-        <div class="stat-label">MODE: CREATIVE</div>
-        <div id="health-bar">💜 💜 💜 💜 💜</div>
-        <div class="stat-label" style="margin-top: 10px;">TITAN HEIGHT: 100 BLOCKS</div>
+    <div id="hud">
+        <div id="dimension-tag">Overworld</div>
+        <div id="health-container">💜💜💜💜💜💜💜💜💜💜</div>
     </div>
 
     <div id="crosshair"></div>
+
+    <div id="warp-msg">WARPING...</div>
+
+    <div id="hotbar">
+        <div class="slot active" id="slot0" onclick="selectSlot(0)">⚔️</div>
+        <div class="slot" id="slot1" onclick="selectSlot(1)">🧱</div>
+        <div class="slot" id="slot2" onclick="selectSlot(2)">🔑</div>
+    </div>
 
     <script type="importmap">
         {
@@ -74,6 +136,31 @@
                 "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
             }
         }
+    </script>
+
+    <script>
+        // UI Logic for switching slots
+        function selectSlot(index) {
+            // Remove active class from all
+            document.querySelectorAll('.slot').forEach(s => s.classList.remove('active'));
+            // Add to selected
+            document.getElementById('slot' + index).classList.add('active');
+            
+            // Link to the Game Engine
+            if (window.updateGameSlot) {
+                window.updateGameSlot(index);
+            }
+        }
+
+        // Dimension Warp Visual
+        window.showWarpEffect = (name) => {
+            const msg = document.getElementById('warp-msg');
+            const tag = document.getElementById('dimension-tag');
+            tag.innerText = name;
+            msg.innerText = "ENTERING " + name;
+            msg.style.opacity = "1";
+            setTimeout(() => { msg.style.opacity = "0"; }, 2000);
+        };
     </script>
 
     <script type="module" src="main.js"></script>
