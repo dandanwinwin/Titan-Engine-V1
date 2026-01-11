@@ -1,55 +1,68 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
 
-// 1. SCENE SETUP (Midnight Theme for Eye Relief)
+// 1. --- GAME STATE & MODES ---
+const GameState = {
+    mode: 'CREATIVE', // Options: 'SURVIVAL', 'CREATIVE', 'HARDCORE'
+    health: 20,
+    maxHealth: 20,
+    commandBlockText: "/spawn breeze",
+    mobs: []
+};
+
+// 2. --- SCENE & RENDERER SETUP ---
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x020205); 
-scene.fog = new THREE.Fog(0x020205, 10, 200);
+scene.background = new THREE.Color(0x020205); // Midnight Blue
+scene.fog = new THREE.Fog(0x020205, 20, 150); // Softens the horizon
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Optimizes for tablet battery
 document.body.appendChild(renderer.domElement);
 
-// 2. CAMERA SETUP (The "Titan View")
+// 3. --- CAMERA & TOUCH CONTROLS ---
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(40, 60, 80); // Positioned to see the whole 100-block height
+camera.position.set(50, 60, 50);
 
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
+controls.enableDamping = true; 
 controls.dampingFactor = 0.05;
-controls.target.set(0, 50, 0); // Focuses the camera on the middle of the Titan
+controls.target.set(0, 50, 0); // Focus on the middle of the 100-block Titan
 
-// 3. SOFT LIGHTING
-const light = new THREE.DirectionalLight(0x4444ff, 0.8);
-light.position.set(10, 100, 10);
-scene.add(light);
-scene.add(new THREE.AmbientLight(0x222222));
+// 4. --- LIGHTING ---
+const sunLight = new THREE.DirectionalLight(0x4444ff, 0.7);
+sunLight.position.set(10, 100, 10);
+scene.add(sunLight);
+scene.add(new THREE.AmbientLight(0x111111));
 
-// 4. TITAN MATERIAL (Pixelated Stone Texture)
-function createStoneTexture() {
+// 5. --- TEXTURE & MATERIAL CREATOR ---
+function createPixelTexture(hexColor) {
     const canvas = document.createElement('canvas');
     canvas.width = 16; canvas.height = 16;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#2c3e50'; // Dark Slate
+    ctx.fillStyle = hexColor;
     ctx.fillRect(0, 0, 16, 16);
-    for(let i=0; i<40; i++) {
-        ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.3})`;
+    for(let i=0; i<32; i++) {
+        ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.2})`;
         ctx.fillRect(Math.random()*16, Math.random()*16, 1, 1);
     }
     const tex = new THREE.CanvasTexture(canvas);
-    tex.magFilter = THREE.NearestFilter;
+    tex.magFilter = THREE.NearestFilter; // Classic pixel look
     return new THREE.MeshLambertMaterial({ map: tex });
 }
-const stoneMat = createStoneTexture();
+
+const stoneMat = createPixelTexture('#2c3e50'); // Titan Stone
+const copperMat = createPixelTexture('#d2691e'); // Trial Chamber Copper
 const boxGeo = new THREE.BoxGeometry(1, 1, 1);
 
-// 5. THE TITAN BUILDER FUNCTION
-function spawnStructure(w, h, d, xO, yO, zO) {
+// 6. --- BUILDER FUNCTIONS ---
+
+// Titan Builder
+function spawnStructure(w, h, d, xO, yO, zO, mat) {
     for (let x = 0; x < w; x++) {
         for (let y = 0; y < h; y++) {
             for (let z = 0; z < d; z++) {
-                const block = new THREE.Mesh(boxGeo, stoneMat);
+                const block = new THREE.Mesh(boxGeo, mat);
                 block.position.set(x + xO, y + yO, z + zO);
                 scene.add(block);
             }
@@ -57,103 +70,60 @@ function spawnStructure(w, h, d, xO, yO, zO) {
     }
 }
 
-// Build 2x3x2 Base
-spawnStructure(2, 3, 2, -1, 0, -1);
-// Build 100-Block Spine
-spawnStructure(1, 100, 1, 0, 3, 0);
-
-// 6. STAR FIELD (Low brightness stars)
-const starGeo = new THREE.BufferGeometry();
-const starCoords = [];
-for(let i=0; i<3000; i++) {
-    starCoords.push((Math.random()-0.5)*800, (Math.random()-0.5)*800, (Math.random()-0.5)*800);
+// Trial Chamber Generator (1.21 Style)
+function spawnTrialChamber(xO, yO, zO) {
+    spawnStructure(10, 1, 10, xO, yO, zO, copperMat); // Floor
+    spawnStructure(10, 5, 1, xO, yO, zO, copperMat); // Wall
+    // Add a "Trial Spawner" block
+    const spawner = new THREE.Mesh(boxGeo, createPixelTexture('#34495e'));
+    spawner.position.set(xO+5, yO+1, zO+5);
+    scene.add(spawner);
 }
-starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starCoords, 3));
-scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({color: 0x555555, size: 0.5})));
 
-// 7. ANIMATION LOOP
+// Mob Spawner (Breeze/Monsters)
+function spawnMob(x, y, z) {
+    const mobGeo = new THREE.OctahedronGeometry(0.7);
+    const mobMat = new THREE.MeshBasicMaterial({ color: 0xadd8e6, wireframe: true });
+    const mob = new THREE.Mesh(mobGeo, mobMat);
+    mob.position.set(x, y, z);
+    mob.velocity = new THREE.Vector3((Math.random()-0.5)*0.05, 0, (Math.random()-0.5)*0.05);
+    scene.add(mob);
+    GameState.mobs.push(mob);
+}
+
+// 7. --- INITIAL WORLD GENERATION ---
+// Build Titan Base (2x3x2)
+spawnStructure(2, 3, 2, -1, 0, -1, stoneMat);
+// Build 100-Block Spine
+spawnStructure(1, 100, 1, 0, 3, 0, stoneMat);
+// Build Trial Chamber underground
+spawnTrialChamber(-5, -10, -5);
+// Spawn Initial Mobs
+spawnMob(5, 2, 5);
+spawnMob(-5, 2, -5);
+
+// 8. --- ANIMATION & PHYSICS LOOP ---
 function animate() {
     requestAnimationFrame(animate);
+
+    // Update Mobs AI
+    GameState.mobs.forEach(mob => {
+        mob.position.add(mob.velocity);
+        mob.rotation.y += 0.02; // Breeze spinning effect
+        if(Math.abs(mob.position.x) > 20) mob.velocity.x *= -1;
+        if(Math.abs(mob.position.z) > 20) mob.velocity.z *= -1;
+    });
+
     controls.update();
     renderer.render(scene, camera);
 }
-animate();
 
-// Handle Tablet Resizing
+// Handle Window Resize
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
-const GameState = {
-    mode: 'CREATIVE', // Change to 'SURVIVAL' or 'HARDCORE'
-    health: 20,
-    maxHealth: 20,
-    inventory: [],
-    isGameOver: false
-};
 
-function takeDamage(amount) {
-    if (GameState.mode === 'CREATIVE') return;
-    GameState.health -= amount;
-    console.log(`Health: ${GameState.health}`);
-    if (GameState.health <= 0) {
-        GameState.isGameOver = true;
-        if (GameState.mode === 'HARDCORE') alert("World Deleted (Hardcore Mode)");
-        else alert("You Died!");
-    }
-}class CommandBlock {
-    constructor(pos) {
-        this.position = pos;
-        this.command = "";
-        this.type = "IMPULSE"; // IMPULSE, REPEAT, CHAIN
-        this.needsRedstone = true;
-    }
-
-    execute() {
-        if (this.command.startsWith("/tp")) {
-            // Logic for teleporting
-            console.log("Teleporting player...");
-        } else if (this.command.startsWith("/spawn")) {
-            // Logic for spawning mobs
-            spawnMob(this.position.x, this.position.y + 1, this.position.z);
-        }
-    }
-}function spawnTrialChamber(x, y, z) {
-    const size = 10;
-    // Create Hollow Copper Box
-    for (let i = 0; i < size; i++) {
-        for (let j = 0; j < size; j++) {
-            for (let k = 0; k < size; k++) {
-                if (i === 0 || i === size-1 || j === 0 || j === size-1 || k === 0 || k === size-1) {
-                    const copperBlock = new THREE.Mesh(boxGeo, new THREE.MeshLambertMaterial({color: 0xd2691e}));
-                    copperBlock.position.set(x + i, y + j, z + k);
-                    scene.add(copperBlock);
-                }
-            }
-        }
-    }
-    // Add a Trial Spawner in the center
-    console.log("Trial Spawner activated at", x + 5, y + 1, z + 5);
-}
-
-// Generate one deep underground
-spawnTrialChamber(0, -20, 0);const mobs = [];
-function spawnMob(x, y, z) {
-    const mobGeo = new THREE.SphereGeometry(0.5, 8, 8);
-    const mobMat = new THREE.MeshLambertMaterial({color: 0xadd8e6}); // Breeze Light Blue
-    const mob = new THREE.Mesh(mobGeo, mobMat);
-    mob.position.set(x, y, z);
-    mob.velocity = new THREE.Vector3((Math.random()-0.5)*0.1, 0, (Math.random()-0.5)*0.1);
-    scene.add(mob);
-    mobs.push(mob);
-}
-
-// AI Loop inside the animate() function
-function updateMobs() {
-    mobs.forEach(mob => {
-        mob.position.add(mob.velocity);
-        // "Bounce" logic
-        if (Math.abs(mob.position.x) > 50) mob.velocity.x *= -1;
-    });
-}
+animate();
+console.log("Titan Engine 1.21 Loaded. Mode: " + GameState.mode);
