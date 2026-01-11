@@ -63,12 +63,13 @@ function buildDimension(dimKey) {
     scene.background = new THREE.Color(d.sky);
     scene.fog = new THREE.Fog(d.sky, 10, 200);
 
-    // Generate Biome Floor
-    for(let x=-25; x<25; x+=2) {
-        for(let z=-25; z<25; z+=2) {
-            placeBlock(x, -1, z, d.ground);
-        }
-    }
+ // NEW CODE (Paste this)
+if (dimKey === 'OVERWORLD') {
+    generateTerrain(scene, 0, 0, 32); // Generates a 64x64 area
+} else {
+    // Keep flat floor for Nether/End
+    for(let x=-20; x<20; x+=2) for(let z=-20; z<20; z+=2) placeBlock(x, -1, z, d.ground);
+}
 
     // Spawn Dimension-Specific Structure
     if(dimKey === 'NETHER') {
