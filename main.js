@@ -1,16 +1,26 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
 
-// --- 1. GAME SETTINGS & SAVE DATA ---
+// --- 1. CORE ENGINE STATE ---
 const GameState = {
     mode: 'CREATIVE',
+    dimension: 'OVERWORLD',
+    health: 20,
     inventory: ['MACE', 'BLOCK', 'KEY'],
     selectedSlot: 0,
     mobs: [],
-    worldBlocks: [] // To store saved blocks
+    worldBlocks: [], // Blocks placed by you
+    isFading: false
 };
 
-// --- 2. ENGINE SETUP ---
+// --- 2. THE MULTIVERSE DICTIONARY ---
+const Dimensions = {
+    OVERWORLD: { sky: 0x020205, fog: 0x020205, ground: '#2ecc71', accent: '#155d27' },
+    NETHER: { sky: 0x1a0505, fog: 0x330000, ground: '#720916', accent: '#3d040b' },
+    END: { sky: 0x050008, fog: 0x110015, ground: '#f0e68c', accent: '#c5b358' }
+};
+
+// --- 3. SCENE & LIGHTING SETUP ---
 const scene = new THREE.Scene();
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -19,113 +29,118 @@ document.body.appendChild(renderer.domElement);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(50, 60, 50);
-
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.target.set(0, 50, 0);
 
-// --- 3. DYNAMIC SKY (DAY/NIGHT) & LIGHTING ---
-const ambientLight = new THREE.AmbientLight(0x222222);
-scene.add(ambientLight);
 const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
 scene.add(sunLight);
+scene.add(new THREE.AmbientLight(0x222222));
 
-function updateEnvironment(time) {
-    const cycle = (Math.sin(time * 0.0001) + 1) / 2; // Slow cycle
-    // Interpolate colors between Midnight and Sunset for eye relief
-    const skyColor = new THREE.Color().lerpColors(
-        new THREE.Color(0x020205), // Night
-        new THREE.Color(0x2c1a05), // Warm Sunset
-        cycle
-    );
-    scene.background = skyColor;
-    scene.fog = new THREE.Fog(skyColor, 20, 200);
-    sunLight.intensity = cycle;
-}
-
-// --- 4. MATERIALS & SAVING LOGIC ---
+// --- 4. SMART BUILDING & TEXTURES ---
 const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-const stoneMat = createTexture('#2c3e50');
-
-function createTexture(color) {
-    const canvas = document.createElement('canvas');
-    canvas.width = 16; canvas.height = 16;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = color;
-    ctx.fillRect(0, 0, 16, 16);
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.magFilter = THREE.NearestFilter;
-    return new THREE.MeshLambertMaterial({ map: tex });
+function getMat(color, emissive = 0x000000) {
+    return new THREE.MeshLambertMaterial({ color, emissive, emissiveIntensity: 0.2 });
 }
 
-// SAVE SYSTEM: Stores the 100-block Titan in your tablet's memory
-function saveWorld() {
-    const data = GameState.worldBlocks.map(b => ({ x: b.x, y: b.y, z: b.z }));
-    localStorage.setItem('titanWorld', JSON.stringify(data));
-}
-
-function loadWorld() {
-    const saved = localStorage.getItem('titanWorld');
-    if (saved) {
-        const blocks = JSON.parse(saved);
-        blocks.forEach(pos => placeBlock(pos.x, pos.y, pos.z, false));
-    }
-}
-
-function placeBlock(x, y, z, shouldSave = true) {
-    const b = new THREE.Mesh(boxGeo, stoneMat);
-    b.position.set(x, y, z);
+function placeBlock(x, y, z, color, persistent = false) {
+    const b = new THREE.Mesh(boxGeo, getMat(color));
+    b.position.set(Math.round(x), Math.round(y), Math.round(z));
     scene.add(b);
-    if (shouldSave) {
-        GameState.worldBlocks.push({ x, y, z });
-        saveWorld();
+    if (persistent) {
+        GameState.worldBlocks.push({ x, y, z, color });
+        localStorage.setItem('titanWorld', JSON.stringify(GameState.worldBlocks));
+    }
+    return b;
+}
+
+// --- 5. STRUCTURE GENERATOR (FORTRESSES & TITAN) ---
+function buildDimension(dimKey) {
+    // Clear old world (except your personal blocks)
+    while(scene.children.length > 3) scene.remove(scene.children[scene.children.length-1]);
+    
+    const d = Dimensions[dimKey];
+    scene.background = new THREE.Color(d.sky);
+    scene.fog = new THREE.Fog(d.sky, 10, 200);
+
+    // Generate Biome Floor
+    for(let x=-25; x<25; x+=2) {
+        for(let z=-25; z<25; z+=2) {
+            placeBlock(x, -1, z, d.ground);
+        }
+    }
+
+    // Spawn Dimension-Specific Structure
+    if(dimKey === 'NETHER') {
+        for(let i=0; i<20; i++) placeBlock(i-10, 5, 0, d.accent); // Fortress Bridge
+    } else if(dimKey === 'OVERWORLD') {
+        for(let i=0; i<100; i++) placeBlock(0, i, 0, '#2c3e50'); // 100-Block Titan
     }
 }
 
-// --- 5. INITIAL GENERATION ---
-// Titan Base (2x3x2)
-for(let x=-1; x<1; x++) for(let y=0; y<3; y++) for(let z=-1; z<1; z++) placeBlock(x,y,z, false);
-// 100-Block Spine
-for(let i=3; i<103; i++) placeBlock(0, i, 0, false);
+// --- 6. MACE SHOCKWAVE & PARTICLES ---
+function maceSmash(pos) {
+    const ringGeo = new THREE.TorusGeometry(2, 0.1, 16, 100);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.position.copy(pos);
+    ring.rotation.x = Math.PI / 2;
+    scene.add(ring);
 
-loadWorld(); // Load any extra blocks you've built
+    let scale = 1;
+    const interval = setInterval(() => {
+        scale += 0.2;
+        ring.scale.set(scale, scale, 1);
+        ring.material.opacity -= 0.05;
+        if (ring.material.opacity <= 0) {
+            scene.remove(ring);
+            clearInterval(interval);
+        }
+    }, 30);
+}
 
-// --- 6. TOUCH & COMBAT ---
+// --- 7. TOUCH INPUT & DIMENSION FADE ---
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
 window.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 3) { // 3 Fingers = Warp
+        const dims = Object.keys(Dimensions);
+        let next = dims[(dims.indexOf(GameState.dimension) + 1) % dims.length];
+        buildDimension(next);
+        GameState.dimension = next;
+        return;
+    }
+
     mouse.x = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(e.touches[0].clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(mouse, camera);
 
-    const hits = raycaster.intersectObjects(scene.children);
-    if (hits.length > 0) {
-        const hit = hits[0];
-        if (GameState.selectedSlot === 0) { // MACE: Smash
-            // Mob removal logic here (from previous code)
-        } else if (GameState.selectedSlot === 1) { // BLOCK: Build
-            const pos = hit.point.add(hit.face.normal.divideScalar(2));
-            placeBlock(Math.round(pos.x), Math.round(pos.y), Math.round(pos.z));
+    const intersects = raycaster.intersectObjects(scene.children);
+    if (intersects.length > 0) {
+        const obj = intersects[0];
+        if (GameState.selectedSlot === 0) { // MACE
+            maceSmash(obj.point);
+        } else if (GameState.selectedSlot === 1) { // BUILD
+            const p = obj.point.add(obj.face.normal.divideScalar(2));
+            placeBlock(p.x, p.y, p.z, '#ffffff', true);
         }
     }
 });
 
-// --- 7. ANIMATION LOOP ---
-function animate(time) {
+// --- 8. INITIALIZE & ANIMATE ---
+buildDimension('OVERWORLD');
+
+function animate() {
     requestAnimationFrame(animate);
-    updateEnvironment(time); // Slowly changes sky color
     controls.update();
+    
+    // Void Death Check
+    if (camera.position.y < -30) {
+        alert("Fell out of world!");
+        camera.position.set(50,60,50);
+    }
+    
     renderer.render(scene, camera);
 }
-
-// --- 8. UI SYNC ---
-document.querySelectorAll('.slot').forEach((slot, i) => {
-    slot.addEventListener('touchstart', () => {
-        document.querySelectorAll('.slot').forEach(s => s.style.borderColor = "#444");
-        slot.style.borderColor = "#8e44ad";
-        GameState.selectedSlot = i;
-    });
-});
-
 animate();
