@@ -144,3 +144,8 @@ function animate() {
     renderer.render(scene, camera);
 }
 animate();
+// This connects the HTML buttons to the JavaScript engine
+window.updateGameSlot = (index) => {
+    GameState.selectedSlot = index;
+    console.log("Holding: " + GameState.inventory[index]);
+};
