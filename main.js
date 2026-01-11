@@ -85,3 +85,75 @@ window.addEventListener('resize', () => {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
+const GameState = {
+    mode: 'CREATIVE', // Change to 'SURVIVAL' or 'HARDCORE'
+    health: 20,
+    maxHealth: 20,
+    inventory: [],
+    isGameOver: false
+};
+
+function takeDamage(amount) {
+    if (GameState.mode === 'CREATIVE') return;
+    GameState.health -= amount;
+    console.log(`Health: ${GameState.health}`);
+    if (GameState.health <= 0) {
+        GameState.isGameOver = true;
+        if (GameState.mode === 'HARDCORE') alert("World Deleted (Hardcore Mode)");
+        else alert("You Died!");
+    }
+}class CommandBlock {
+    constructor(pos) {
+        this.position = pos;
+        this.command = "";
+        this.type = "IMPULSE"; // IMPULSE, REPEAT, CHAIN
+        this.needsRedstone = true;
+    }
+
+    execute() {
+        if (this.command.startsWith("/tp")) {
+            // Logic for teleporting
+            console.log("Teleporting player...");
+        } else if (this.command.startsWith("/spawn")) {
+            // Logic for spawning mobs
+            spawnMob(this.position.x, this.position.y + 1, this.position.z);
+        }
+    }
+}function spawnTrialChamber(x, y, z) {
+    const size = 10;
+    // Create Hollow Copper Box
+    for (let i = 0; i < size; i++) {
+        for (let j = 0; j < size; j++) {
+            for (let k = 0; k < size; k++) {
+                if (i === 0 || i === size-1 || j === 0 || j === size-1 || k === 0 || k === size-1) {
+                    const copperBlock = new THREE.Mesh(boxGeo, new THREE.MeshLambertMaterial({color: 0xd2691e}));
+                    copperBlock.position.set(x + i, y + j, z + k);
+                    scene.add(copperBlock);
+                }
+            }
+        }
+    }
+    // Add a Trial Spawner in the center
+    console.log("Trial Spawner activated at", x + 5, y + 1, z + 5);
+}
+
+// Generate one deep underground
+spawnTrialChamber(0, -20, 0);const mobs = [];
+function spawnMob(x, y, z) {
+    const mobGeo = new THREE.SphereGeometry(0.5, 8, 8);
+    const mobMat = new THREE.MeshLambertMaterial({color: 0xadd8e6}); // Breeze Light Blue
+    const mob = new THREE.Mesh(mobGeo, mobMat);
+    mob.position.set(x, y, z);
+    mob.velocity = new THREE.Vector3((Math.random()-0.5)*0.1, 0, (Math.random()-0.5)*0.1);
+    scene.add(mob);
+    mobs.push(mob);
+}
+
+// AI Loop inside the animate() function
+function updateMobs() {
+    mobs.forEach(mob => {
+        mob.position.add(mob.velocity);
+        // "Bounce" logic
+        if (Math.abs(mob.position.x) > 50) mob.velocity.x *= -1;
+    });
+}
