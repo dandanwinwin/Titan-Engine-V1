@@ -1,3 +1,4 @@
+import { initExpansion } from './titan_expansion.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
 
@@ -105,7 +106,7 @@ window.addEventListener('touchstart', (e) => {
 window.updateSlot = (i) => { GameState.slot = i; };
 window.sendChat = (txt) => { processCommand(txt, GameState, scene, camera); };
 
-function animate() {
+function animate() {if (window.runExpansion) window.runExpansion();
     requestAnimationFrame(animate);
     controls.update();
     const debug = document.getElementById('debug-coords');
