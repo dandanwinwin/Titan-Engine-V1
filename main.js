@@ -2,7 +2,13 @@ import * as THREE from 'three';
 import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
 
 // 1. --- ADVANCED GAME STATE ---
-const GameState = {
+const GameState = {const GameState = {
+    mode: 'CREATIVE',
+    health: 20,
+    inventory: ['MACE', 'BLOCK', 'KEY'],
+    selectedSlot: 0, // This tracks which item is active
+    mobs: []
+};
     mode: 'CREATIVE', 
     health: 20,
     inventory: ['Mace', 'Copper Block', 'Trial Key'],
