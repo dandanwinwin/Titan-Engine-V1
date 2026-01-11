@@ -1,4 +1,23 @@
-# Logs
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build outputs
+dist/
+build/
+.cache/
+
+# Operating System files (Junk)
+.DS_Store
+Thumbs.db
+
+# Environment variables (Private data)
+.env
+*.log
+
+# Editor-specific files
+.vscode/
+.idea/# Logs
 logs
 *.log
 npm-debug.log*
