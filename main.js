@@ -80,3 +80,7 @@ function animate() {
 
 window.updateSlot = (i) => GameState.slot = i;
 animate();
+import { launchPrismarine } from './prismarine_bridge.js';
+
+// Launch the professional client
+launchPrismarine();
