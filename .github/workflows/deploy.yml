@@ -1,0 +1,21 @@
+name: Deploy Titan Engine
+on:
+  push:
+    branches:
+      - main  # Make sure this matches your default branch name
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout 🛠️
+        uses: actions/checkout@v4
+
+      - name: Deploy to GitHub Pages 🚀
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: . # This tells GitHub to deploy the current folder
+          branch: gh-pages # This is the branch where the website lives
