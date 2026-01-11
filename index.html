@@ -2,23 +2,76 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Titan Engine V1</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Titan Engine 1.21</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #000011; }
-        canvas { display: block; }
-        #ui { position: absolute; top: 10px; left: 10px; color: #778899; font-family: sans-serif; pointer-events: none; }
+        /* Midnight theme to prevent eye strain */
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background-color: #020205; 
+            user-select: none;
+            touch-action: none;
+        }
+
+        canvas { 
+            display: block; 
+        }
+
+        /* Low-contrast UI Overlay */
+        #ui-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #a0a0a0; /* Soft gray instead of harsh white */
+            pointer-events: none;
+            text-shadow: 1px 1px 2px black;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            margin-bottom: 5px;
+            letter-spacing: 1px;
+        }
+
+        #health-bar {
+            color: #8e44ad; /* Soft purple/red for health */
+            font-size: 18px;
+        }
+
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(160, 160, 160, 0.3);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
-    <div id="ui">Titan Engine: Build Mode Active</div>
+
+    <div id="ui-container">
+        <div class="stat-label">MODE: CREATIVE</div>
+        <div id="health-bar">💜 💜 💜 💜 💜</div>
+        <div class="stat-label" style="margin-top: 10px;">TITAN HEIGHT: 100 BLOCKS</div>
+    </div>
+
+    <div id="crosshair"></div>
+
     <script type="importmap">
-        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+            }
+        }
     </script>
+
     <script type="module" src="main.js"></script>
+
 </body>
 </html>
-<div id="game-ui" style="position: fixed; bottom: 20px; left: 20px; color: #fff; font-family: monospace; text-shadow: 2px 2px #000;">
-    <div id="health-bar">❤️❤️❤️❤️❤️❤️❤️❤️❤️❤️</div>
-    <div id="current-mode">Mode: Creative</div>
-</div>
