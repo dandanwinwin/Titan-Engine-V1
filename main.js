@@ -1,117 +1,51 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import { generateChunk } from './worldGen.js';
+import { processCommand } from './commands.js';
 
-// --- 1. CORE ENGINE STATE ---
+// --- GAME STATE ---
 const GameState = {
     mode: 'CREATIVE',
-    dimension: 'OVERWORLD',
-    health: 20,
-    inventory: ['MACE', 'BLOCK', 'KEY'],
-    selectedSlot: 0,
-    mobs: [],
-    worldBlocks: [], // Blocks placed by you
-    isFading: false
+    slot: 0,
+    time: 0.5 // 0 to 1 (Day/Night cycle)
 };
 
-// --- 2. THE MULTIVERSE DICTIONARY ---
-const Dimensions = {
-    OVERWORLD: { sky: 0x020205, fog: 0x020205, ground: '#2ecc71', accent: '#155d27' },
-    NETHER: { sky: 0x1a0505, fog: 0x330000, ground: '#720916', accent: '#3d040b' },
-    END: { sky: 0x050008, fog: 0x110015, ground: '#f0e68c', accent: '#c5b358' }
-};
-
-// --- 3. SCENE & LIGHTING SETUP ---
+// --- SETUP SCENE ---
 const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87CEEB); 
+scene.fog = new THREE.Fog(0x87CEEB, 20, 80);
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 150);
+camera.position.set(16, 15, 16);
+
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 document.body.appendChild(renderer.domElement);
 
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(50, 60, 50);
 const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(16, 0, 16);
 controls.enableDamping = true;
-controls.target.set(0, 50, 0);
 
-const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
-scene.add(sunLight);
-scene.add(new THREE.AmbientLight(0x222222));
+// --- LIGHTING ---
+const ambient = new THREE.AmbientLight(0x404040);
+scene.add(ambient);
+const sun = new THREE.DirectionalLight(0xffffff, 1);
+sun.position.set(50, 100, 50);
+scene.add(sun);
 
-// --- 4. SMART BUILDING & TEXTURES ---
-const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-function getMat(color, emissive = 0x000000) {
-    return new THREE.MeshLambertMaterial({ color, emissive, emissiveIntensity: 0.2 });
-}
+// --- WORLD GENERATION ---
+// Generate a 2x2 chunk area (32x32 blocks)
+generateChunk(scene, 0, 0);
+generateChunk(scene, 16, 0);
+generateChunk(scene, 0, 16);
+generateChunk(scene, 16, 16);
 
-function placeBlock(x, y, z, color, persistent = false) {
-    const b = new THREE.Mesh(boxGeo, getMat(color));
-    b.position.set(Math.round(x), Math.round(y), Math.round(z));
-    scene.add(b);
-    if (persistent) {
-        GameState.worldBlocks.push({ x, y, z, color });
-        localStorage.setItem('titanWorld', JSON.stringify(GameState.worldBlocks));
-    }
-    return b;
-}
-
-// --- 5. STRUCTURE GENERATOR (FORTRESSES & TITAN) ---
-function buildDimension(dimKey) {
-    // Clear old world (except your personal blocks)
-    while(scene.children.length > 3) scene.remove(scene.children[scene.children.length-1]);
-    
-    const d = Dimensions[dimKey];
-    scene.background = new THREE.Color(d.sky);
-    scene.fog = new THREE.Fog(d.sky, 10, 200);
-
- // NEW CODE (Paste this)
-if (dimKey === 'OVERWORLD') {
-    generateTerrain(scene, 0, 0, 32); // Generates a 64x64 area
-} else {
-    // Keep flat floor for Nether/End
-    for(let x=-20; x<20; x+=2) for(let z=-20; z<20; z+=2) placeBlock(x, -1, z, d.ground);
-}
-
-    // Spawn Dimension-Specific Structure
-    if(dimKey === 'NETHER') {
-        for(let i=0; i<20; i++) placeBlock(i-10, 5, 0, d.accent); // Fortress Bridge
-    } else if(dimKey === 'OVERWORLD') {
-        for(let i=0; i<100; i++) placeBlock(0, i, 0, '#2c3e50'); // 100-Block Titan
-    }
-}
-
-// --- 6. MACE SHOCKWAVE & PARTICLES ---
-function maceSmash(pos) {
-    const ringGeo = new THREE.TorusGeometry(2, 0.1, 16, 100);
-    const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 });
-    const ring = new THREE.Mesh(ringGeo, ringMat);
-    ring.position.copy(pos);
-    ring.rotation.x = Math.PI / 2;
-    scene.add(ring);
-
-    let scale = 1;
-    const interval = setInterval(() => {
-        scale += 0.2;
-        ring.scale.set(scale, scale, 1);
-        ring.material.opacity -= 0.05;
-        if (ring.material.opacity <= 0) {
-            scene.remove(ring);
-            clearInterval(interval);
-        }
-    }, 30);
-}
-
-// --- 7. TOUCH INPUT & DIMENSION FADE ---
+// --- INPUT & INTERACTION ---
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
 window.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 3) { // 3 Fingers = Warp
-        const dims = Object.keys(Dimensions);
-        let next = dims[(dims.indexOf(GameState.dimension) + 1) % dims.length];
-        buildDimension(next);
-        GameState.dimension = next;
-        return;
-    }
+    if(e.touches.length > 1) return; // Prevent accidental placement on zoom
 
     mouse.x = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(e.touches[0].clientY / window.innerHeight) * 2 + 1;
@@ -119,34 +53,55 @@ window.addEventListener('touchstart', (e) => {
 
     const intersects = raycaster.intersectObjects(scene.children);
     if (intersects.length > 0) {
-        const obj = intersects[0];
-        if (GameState.selectedSlot === 0) { // MACE
-            maceSmash(obj.point);
-        } else if (GameState.selectedSlot === 1) { // BUILD
-            const p = obj.point.add(obj.face.normal.divideScalar(2));
-            placeBlock(p.x, p.y, p.z, '#ffffff', true);
+        const hit = intersects[0];
+        const obj = hit.object;
+
+        // Command Block Activation
+        if (obj.userData.isCommandBlock) {
+            processCommand(obj.userData.command, GameState, scene, camera);
+            return;
+        }
+
+        // Place or Break
+        if (GameState.slot === 0) { // Sword/Hand -> Break
+             scene.remove(obj);
+        } else { // Place
+            const p = hit.point.add(hit.face.normal.divideScalar(2));
+            const geo = new THREE.BoxGeometry(1,1,1);
+            let color = 0x8e44ad; // Default
+            let isCmd = false;
+
+            if (GameState.slot === 2) color = 0x3498db; // Water
+            if (GameState.slot === 3) { color = 0xff7f00; isCmd = true; } // Command Block
+
+            const mat = new THREE.MeshLambertMaterial({ color: color, transparent: (GameState.slot===2), opacity: (GameState.slot===2?0.6:1) });
+            const b = new THREE.Mesh(geo, mat);
+            b.position.set(Math.round(p.x), Math.round(p.y), Math.round(p.z));
+            
+            if (isCmd) {
+                b.userData = { isCommandBlock: true, command: "/time set night" }; // Default command
+                alert("Placed Command Block! (Defaults to Night toggle)");
+            }
+
+            scene.add(b);
         }
     }
 });
 
-// --- 8. INITIALIZE & ANIMATE ---
-buildDimension('OVERWORLD');
+// --- UI BRIDGES ---
+window.updateSlot = (i) => { GameState.slot = i; };
+window.sendChat = (txt) => { processCommand(txt, GameState, scene, camera); };
 
+// --- LOOP ---
 function animate() {
     requestAnimationFrame(animate);
     controls.update();
     
-    // Void Death Check
-    if (camera.position.y < -30) {
-        alert("Fell out of world!");
-        camera.position.set(50,60,50);
-    }
-    
+    // Debug Info
+    const x = Math.round(camera.position.x);
+    const z = Math.round(camera.position.z);
+    document.getElementById('debug-coords').innerText = `XYZ: ${x} / ${Math.round(camera.position.y)} / ${z}`;
+
     renderer.render(scene, camera);
 }
 animate();
-// This connects the HTML buttons to the JavaScript engine
-window.updateGameSlot = (index) => {
-    GameState.selectedSlot = index;
-    console.log("Holding: " + GameState.inventory[index]);
-};
