@@ -1,129 +1,127 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
 
-// 1. --- GAME STATE & MODES ---
+// 1. --- ADVANCED GAME STATE ---
 const GameState = {
-    mode: 'CREATIVE', // Options: 'SURVIVAL', 'CREATIVE', 'HARDCORE'
+    mode: 'CREATIVE', 
     health: 20,
-    maxHealth: 20,
-    commandBlockText: "/spawn breeze",
-    mobs: []
+    inventory: ['Mace', 'Copper Block', 'Trial Key'],
+    selectedItem: 0,
+    mobs: [],
+    // Command Block Memory
+    commandHistory: "/spawn_titan 100",
 };
 
-// 2. --- SCENE & RENDERER SETUP ---
+// 2. --- ENGINE SETUP ---
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x020205); // Midnight Blue
-scene.fog = new THREE.Fog(0x020205, 20, 150); // Softens the horizon
+scene.background = new THREE.Color(0x020205); 
+scene.fog = new THREE.Fog(0x020205, 10, 200);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Optimizes for tablet battery
 document.body.appendChild(renderer.domElement);
 
-// 3. --- CAMERA & TOUCH CONTROLS ---
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(50, 60, 50);
-
+camera.position.set(40, 60, 40);
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; 
-controls.dampingFactor = 0.05;
-controls.target.set(0, 50, 0); // Focus on the middle of the 100-block Titan
+controls.enableDamping = true;
 
-// 4. --- LIGHTING ---
-const sunLight = new THREE.DirectionalLight(0x4444ff, 0.7);
-sunLight.position.set(10, 100, 10);
-scene.add(sunLight);
-scene.add(new THREE.AmbientLight(0x111111));
+// 3. --- THE MOB DICTIONARY (All Mobs Logic) ---
+const MobTypes = {
+    BREEZE: { color: 0xadd8e6, size: 0.8, behavior: 'HOSTILE', shape: 'OCTA' },
+    ARMADILLO: { color: 0x8b4513, size: 0.6, behavior: 'PASSIVE', shape: 'BOX' },
+    TITAN_GUARD: { color: 0x2c3e50, size: 2.5, behavior: 'NEUTRAL', shape: 'BOX' },
+    BOGGED: { color: 0x556b2f, size: 0.9, behavior: 'HOSTILE', shape: 'BOX' }
+};
 
-// 5. --- TEXTURE & MATERIAL CREATOR ---
-function createPixelTexture(hexColor) {
-    const canvas = document.createElement('canvas');
-    canvas.width = 16; canvas.height = 16;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = hexColor;
-    ctx.fillRect(0, 0, 16, 16);
-    for(let i=0; i<32; i++) {
-        ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.2})`;
-        ctx.fillRect(Math.random()*16, Math.random()*16, 1, 1);
-    }
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.magFilter = THREE.NearestFilter; // Classic pixel look
-    return new THREE.MeshLambertMaterial({ map: tex });
-}
-
-const stoneMat = createPixelTexture('#2c3e50'); // Titan Stone
-const copperMat = createPixelTexture('#d2691e'); // Trial Chamber Copper
-const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-
-// 6. --- BUILDER FUNCTIONS ---
-
-// Titan Builder
-function spawnStructure(w, h, d, xO, yO, zO, mat) {
-    for (let x = 0; x < w; x++) {
-        for (let y = 0; y < h; y++) {
-            for (let z = 0; z < d; z++) {
-                const block = new THREE.Mesh(boxGeo, mat);
-                block.position.set(x + xO, y + yO, z + zO);
-                scene.add(block);
-            }
-        }
-    }
-}
-
-// Trial Chamber Generator (1.21 Style)
-function spawnTrialChamber(xO, yO, zO) {
-    spawnStructure(10, 1, 10, xO, yO, zO, copperMat); // Floor
-    spawnStructure(10, 5, 1, xO, yO, zO, copperMat); // Wall
-    // Add a "Trial Spawner" block
-    const spawner = new THREE.Mesh(boxGeo, createPixelTexture('#34495e'));
-    spawner.position.set(xO+5, yO+1, zO+5);
-    scene.add(spawner);
-}
-
-// Mob Spawner (Breeze/Monsters)
-function spawnMob(x, y, z) {
-    const mobGeo = new THREE.OctahedronGeometry(0.7);
-    const mobMat = new THREE.MeshBasicMaterial({ color: 0xadd8e6, wireframe: true });
-    const mob = new THREE.Mesh(mobGeo, mobMat);
+function spawnMob(typeKey, x, y, z) {
+    const data = MobTypes[typeKey];
+    let geo;
+    if (data.shape === 'OCTA') geo = new THREE.OctahedronGeometry(data.size);
+    else geo = new THREE.BoxGeometry(data.size, data.size, data.size);
+    
+    const mat = new THREE.MeshLambertMaterial({ color: data.color });
+    const mob = new THREE.Mesh(geo, mat);
     mob.position.set(x, y, z);
-    mob.velocity = new THREE.Vector3((Math.random()-0.5)*0.05, 0, (Math.random()-0.5)*0.05);
+    
+    // AI Stats
+    mob.userData = { 
+        type: typeKey, 
+        behavior: data.behavior, 
+        hp: (data.behavior === 'HOSTILE') ? 20 : 10,
+        velocity: new THREE.Vector3((Math.random()-0.5)*0.1, 0, (Math.random()-0.5)*0.1)
+    };
+    
     scene.add(mob);
     GameState.mobs.push(mob);
 }
 
-// 7. --- INITIAL WORLD GENERATION ---
-// Build Titan Base (2x3x2)
-spawnStructure(2, 3, 2, -1, 0, -1, stoneMat);
-// Build 100-Block Spine
-spawnStructure(1, 100, 1, 0, 3, 0, stoneMat);
-// Build Trial Chamber underground
-spawnTrialChamber(-5, -10, -5);
-// Spawn Initial Mobs
-spawnMob(5, 2, 5);
-spawnMob(-5, 2, -5);
+// 4. --- COMMAND BLOCK SYSTEM ---
+function runCommand(cmd) {
+    if (cmd.startsWith("/spawn")) {
+        const parts = cmd.split(" ");
+        const type = parts[1].toUpperCase();
+        if (MobTypes[type]) {
+            spawnMob(type, 0, 5, 0);
+            return `Spawned ${type}`;
+        }
+    }
+    if (cmd.startsWith("/gamemode")) {
+        GameState.mode = cmd.split(" ")[1].toUpperCase();
+        return `Mode changed to ${GameState.mode}`;
+    }
+    return "Unknown Command";
+}
 
-// 8. --- ANIMATION & PHYSICS LOOP ---
+// 5. --- TRIAL CHAMBER GENERATOR ---
+const copperMat = new THREE.MeshLambertMaterial({color: 0xd2691e});
+const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+
+function buildRoom(xO, yO, zO, size) {
+    for(let x=0; x<size; x++) {
+        for(let z=0; z<size; z++) {
+            // Floor and Ceiling
+            const floor = new THREE.Mesh(boxGeo, copperMat);
+            floor.position.set(x+xO, yO, z+zO);
+            scene.add(floor);
+        }
+    }
+}
+
+// 6. --- INITIALIZE WORLD ---
+buildRoom(-10, -5, -10, 20); // Underground Trial Room
+spawnMob('BREEZE', 5, -4, 5);
+spawnMob('ARMADILLO', -5, 1, -5);
+
+// Titan Base (2x3x2)
+const stoneMat = new THREE.MeshLambertMaterial({color: 0x34495e});
+for(let x=0; x<2; x++) for(let y=0; y<3; y++) for(let z=0; z<2; z++) {
+    const b = new THREE.Mesh(boxGeo, stoneMat);
+    b.position.set(x, y, z);
+    scene.add(b);
+}
+// 100-Block Spine
+for(let i=3; i<103; i++) {
+    const b = new THREE.Mesh(boxGeo, stoneMat);
+    b.position.set(0, i, 0);
+    scene.add(b);
+}
+
+// 7. --- ANIMATION LOOP ---
 function animate() {
     requestAnimationFrame(animate);
-
-    // Update Mobs AI
+    
+    // AI Movement Logic
     GameState.mobs.forEach(mob => {
-        mob.position.add(mob.velocity);
-        mob.rotation.y += 0.02; // Breeze spinning effect
-        if(Math.abs(mob.position.x) > 20) mob.velocity.x *= -1;
-        if(Math.abs(mob.position.z) > 20) mob.velocity.z *= -1;
+        mob.position.add(mob.userData.velocity);
+        if (mob.userData.behavior === 'HOSTILE') {
+            mob.rotation.y += 0.1; // Hostile mobs spin (angry)
+        }
+        // Collision with invisible walls
+        if (Math.abs(mob.position.x) > 20) mob.userData.velocity.x *= -1;
     });
 
     controls.update();
     renderer.render(scene, camera);
 }
-
-// Handle Window Resize
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-});
-
 animate();
-console.log("Titan Engine 1.21 Loaded. Mode: " + GameState.mode);
