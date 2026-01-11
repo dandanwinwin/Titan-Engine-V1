@@ -197,3 +197,14 @@ function animate() {
     
     renderer.render(scene, camera);
 }
+// Function to change slots when you tap them
+document.querySelectorAll('.slot').forEach((slot, index) => {
+    slot.addEventListener('touchstart', () => {
+        // Reset all borders
+        document.querySelectorAll('.slot').forEach(s => s.style.borderColor = "#444");
+        // Highlight selected
+        slot.style.borderColor = "#8e44ad";
+        GameState.selectedSlot = index;
+        console.log("Holding: " + GameState.inventory[index]);
+    });
+});
