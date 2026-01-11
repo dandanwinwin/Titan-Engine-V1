@@ -125,3 +125,69 @@ function animate() {
     renderer.render(scene, camera);
 }
 animate();
+// --- 9. INTERACTION & BUILDING ---
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+window.addEventListener('touchstart', (event) => {
+    // Calculate touch position for the raycaster
+    mouse.x = (event.touches[0].clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.touches[0].clientY / window.innerHeight) * 2 + 1;
+    
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(scene.children);
+
+    if (intersects.length > 0) {
+        const obj = intersects[0];
+        
+        // If Creative: Place a block on the face we touched
+        if (GameState.mode === 'CREATIVE') {
+            const pos = obj.point.add(obj.face.normal.divideScalar(2));
+            const newBlock = new THREE.Mesh(boxGeo, stoneMat);
+            newBlock.position.set(Math.round(pos.x), Math.round(pos.y), Math.round(pos.z));
+            scene.add(newBlock);
+        } 
+        
+        // If it's a Command Block (checking by position)
+        if (obj.object.position.y < 0) {
+            let cmd = prompt("Enter Command:", GameState.commandHistory);
+            if (cmd) {
+                const result = runCommand(cmd);
+                alert(result);
+                GameState.commandHistory = cmd;
+            }
+        }
+    }
+});
+
+// --- 10. SIMPLE PHYSICS (Gravity) ---
+let yVelocity = 0;
+const gravity = -0.01;
+const jumpStrength = 0.2;
+
+function applyPhysics() {
+    if (GameState.mode === 'SURVIVAL' || GameState.mode === 'HARDCORE') {
+        yVelocity += gravity;
+        camera.position.y += yVelocity;
+
+        // Ground collision (Stay above the trial chamber floor)
+        if (camera.position.y < 2) {
+            camera.position.y = 2;
+            yVelocity = 0;
+        }
+    }
+}
+
+// Update the animate loop one last time
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    applyPhysics(); // Apply gravity
+    
+    // Smoothly spin the Breeze mobs
+    GameState.mobs.forEach(mob => {
+        mob.rotation.y += 0.05;
+    });
+    
+    renderer.render(scene, camera);
+}
